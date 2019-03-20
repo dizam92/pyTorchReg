@@ -134,7 +134,6 @@ class FullyConnectedNN(nn.Module):
         :param output_dim: the size of the prediction (Y.shape)
         :param layers_sizes: list, with the size of each layers of the network
         :param activation_function:
-        :param lr: learning rate
         """
         super(FullyConnectedNN, self).__init__()
         self.input_dim = input_dim
@@ -147,12 +146,6 @@ class FullyConnectedNN(nn.Module):
             last_layer_size = layer_size
         assert activation_function in vars(nn.modules.activation), \
             'The activation function {} is not supported.'.format(activation_function)
-
-        # self.fc_net = nn.Sequential(
-        #     *top_layers,
-        #     nn.Linear(last_layer_size, output_dim),
-        #     vars(nn.modules.activation)[activation_function]()
-        # )
 
         self.fc_net = nn.Sequential(
             *top_layers,

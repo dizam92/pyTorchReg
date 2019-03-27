@@ -128,7 +128,7 @@ class CifarNetBatchNorm(nn.Module):
 
 
 class FullyConnectedNN(nn.Module):
-    def __init__(self, input_dim, output_dim, activation_function='ReLU', layers_sizes=[]):
+    def __init__(self, input_dim, output_dim, activation_function='Softmax', layers_sizes=[]):
         """
         :param input_dim: the size of the input dim
         :param output_dim: the size of the prediction (Y.shape)

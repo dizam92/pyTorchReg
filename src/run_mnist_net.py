@@ -1,5 +1,7 @@
 import pickle
 import time
+import os
+from glob import glob
 from collections import defaultdict
 
 import torch
@@ -47,10 +49,10 @@ def validate(model, val_loader, regularizer_loss, all_param_regularized=True, us
             predictions = output.max(dim=1)[1]
 
             loss_val = criterion(output, targets)
-            if all_param_regularized:
-                loss_val = regularizer_loss.loss_all_params_regularized(reg_loss_function=loss_val)
-            else:
-                loss_val = regularizer_loss.loss_regularized(reg_loss_function=loss_val)
+            # if all_param_regularized:
+            #     loss_val = regularizer_loss.loss_all_params_regularized(reg_loss_function=loss_val)
+            # else:
+            #     loss_val = regularizer_loss.loss_regularized(reg_loss_function=loss_val)
             val_loss.append(loss_val.item())
             # val_loss.append(criterion(output, targets).item())
             true.extend(targets.data.cpu().numpy().tolist())
@@ -59,7 +61,7 @@ def validate(model, val_loader, regularizer_loss, all_param_regularized=True, us
     return accuracy_score(true, pred) * 100, sum(val_loss) / len(val_loss)
 
 
-def train(model, dataset, n_epoch, batch_size, learning_rate, regularizer_loss, all_param_regularized=True,
+def train_with_regularizer(model, dataset, n_epoch, batch_size, learning_rate, regularizer_loss, all_param_regularized=True,
           use_gpu=False):
     history = History()
 
@@ -82,10 +84,47 @@ def train(model, dataset, n_epoch, batch_size, learning_rate, regularizer_loss, 
             optimizer.zero_grad()
             output = model(inputs)
             loss = criterion(output, targets)
-            if all_param_regularized:
-                loss = regularizer_loss.loss_all_params_regularized(reg_loss_function=loss)
-            else:
-                loss = regularizer_loss.loss_regularized(reg_loss_function=loss)
+            # if all_param_regularized:
+            #     loss = regularizer_loss.loss_all_params_regularized(reg_loss_function=loss)
+            # else:
+            #     loss = regularizer_loss.loss_regularized(reg_loss_function=loss)
+            loss.backward()
+            optimizer.step()
+
+        train_acc, train_loss = validate(model, train_loader, regularizer_loss, all_param_regularized, use_gpu)
+        val_acc, val_loss = validate(model, val_loader, regularizer_loss, all_param_regularized, use_gpu)
+        history.save(train_acc, val_acc, train_loss, val_loss)
+        print('Epoch {} - Train acc: {:.2f} - Val acc: {:.2f} - Train loss: {:.4f} - Val loss: {:.4f}'.format(i,
+                                                                                                              train_acc,
+                                                                                                              val_acc,
+                                                                                                              train_loss,
+                                                                                                              val_loss))
+    return history
+
+
+def train_without_regularizer(model, dataset, n_epoch, batch_size, learning_rate, weight_decay, use_weight_decay=False, use_gpu=False):
+    history = History()
+
+    criterion = nn.CrossEntropyLoss()
+    if use_weight_decay:
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0.0)
+    dataset.transform = ToTensor()
+    train_loader, val_loader = train_valid_loaders(dataset, batch_size=batch_size)
+
+    for i in range(n_epoch):
+        model.train()
+        for j, batch in enumerate(train_loader):
+            inputs, targets = batch['data'], batch['target']
+            inputs = inputs.type(torch.FloatTensor)
+            if use_gpu:
+                inputs = inputs.cuda()
+                targets = targets.cuda()
+
+            optimizer.zero_grad()
+            output = model(inputs)
+            loss = criterion(output, targets)
             loss.backward()
             optimizer.step()
 
@@ -202,17 +241,17 @@ def main_mnist():
     print(tested_model)
 
 
-def main_digits(type_of_reg='l1', result_file='l1_NN', all_param_regularized=True, use_gpu=False):
+def main_digits_with_regularizer(type_of_reg='l1', result_file='l1_NN', all_param_regularized=True, use_gpu=False):
     """ We run the optimization algorithm for 200 epochs, with mini-batches of 300 elements.
      After training, all weights under 10−3 in absolute value are set to 0.
      C'est très obscure ceci et je ne sais pas pourquoi ils le font ...
      """
     digits_train, digits_test = load_digits_sklearn()
     batch_size = 300
-    # lr = 0.01
-    # n_epoch = 200
-    # ld_reg = 0.01
-    # alpha_reg = 0.1
+    # lr_list_param = [0.01]
+    # n_epoch_list = [200]
+    # ld_reg_list = [0.01]
+    # alpha_reg_list = [0.1]
 
     lr_list_param = [0.1, 0.01, 0.001, 0.0001, 0.00001]
     n_epoch_list = [200, 300]
@@ -265,16 +304,58 @@ def main_digits(type_of_reg='l1', result_file='l1_NN', all_param_regularized=Tru
         saving_dict['param_{}'.format(i)] = [history_trained, tested_model]
 
     result_file = result_file + time.strftime("%Y%m%d-%H%M%S") + ".pck"
-    with open(result_file, 'w') as f:
+    with open(result_file, 'wb') as f:
         pickle.dump(saving_dict, f)
+
+
+def main_digits_without_regularizer(weight_decay=False, result_file='fc_normal', all_param_regularized=True, use_gpu=False):
+    """
+    Run the simplest algorithm to compare the action of the regularization
+     """
+    digits_train, digits_test = load_digits_sklearn()
+    batch_size = 300
+
+    lr_list_param = [0.1, 0.01, 0.001, 0.0001, 0.00001]
+    n_epoch_list = [200, 300]
+    params = list(ParameterGrid({'lr': lr_list_param,
+                                 'n_epoch': n_epoch_list
+                                 }))
+
+    model = FullyConnectedNN(input_dim=64, output_dim=10, activation_function='ReLU', layers_sizes=[40, 20])
+    saving_dict = defaultdict(dict)
+    for i, param in enumerate(params):
+        history_trained = train(model=model,
+                                n_epoch=param['n_epoch'],
+                                dataset=digits_train,
+                                batch_size=batch_size,
+                                learning_rate=param['lr'],
+                                all_param_regularized=all_param_regularized,
+                                use_gpu=use_gpu)
+        # history_trained.display()
+        tested_model = test(model=model, dataset=digits_test, batch_size=batch_size, regularizer_loss=reg_loss,
+                            all_param_regularized=all_param_regularized, use_gpu=use_gpu)
+        print(tested_model)
+        saving_dict['param_{}'.format(i)] = [history_trained, tested_model]
+
+    result_file = result_file + time.strftime("%Y%m%d-%H%M%S") + ".pck"
+    with open(result_file, 'wb') as f:
+        pickle.dump(saving_dict, f)
+
+
+def load_file(directory):
+    os.chdir(directory)
+    for fichier in glob('pck'):
+        print('{}'.format(fichier))
+        d = pickle.load(open(fichier, 'rb'))
+        print()
 
 
 if __name__ == '__main__':
     main_digits(type_of_reg='l1', result_file='l1_NN', all_param_regularized=True, use_gpu=False)
-    main_digits(type_of_reg='l2', result_file='l2_NN', all_param_regularized=True, use_gpu=False)
-    main_digits(type_of_reg='EL', result_file='EL_NN', all_param_regularized=True, use_gpu=False)
-    main_digits(type_of_reg='GL', result_file='GL_NN', all_param_regularized=True, use_gpu=False)
-    main_digits(type_of_reg='SGL', result_file='SGL_NN', all_param_regularized=True, use_gpu=False)
+    # main_digits(type_of_reg='l2', result_file='l2_NN', all_param_regularized=True, use_gpu=False)
+    # main_digits(type_of_reg='EL', result_file='EL_NN', all_param_regularized=True, use_gpu=False)
+    # main_digits(type_of_reg='GL', result_file='GL_NN', all_param_regularized=True, use_gpu=False)
+    # main_digits(type_of_reg='SGL', result_file='SGL_NN', all_param_regularized=True, use_gpu=False)
 
 
 

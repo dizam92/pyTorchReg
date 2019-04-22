@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.utils.data
 from torch.utils.data.sampler import SubsetRandomSampler
+torch.manual_seed(42)
 
 
 def train_valid_loaders(dataset, batch_size, train_split=0.8, shuffle=True):

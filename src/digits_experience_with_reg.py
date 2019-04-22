@@ -1,5 +1,6 @@
 import pickle
 import time
+import numpy as np
 from collections import defaultdict
 
 import torch
@@ -14,10 +15,12 @@ from src.deeplib.datasets import load_cifar10, load_mnist, load_digits_sklearn
 from src.deeplib.history import History
 from src.deeplib.data import train_valid_loaders
 from src.deeplib.net import MnistNet, CifarNet, FullyConnectedNN
-from src.utils import load_file
+from src.utils import load_file, main_analyses
 
 from src.regularization.regularizer import L1Regularizer, L2Regularizer, ElasticNetRegularizer, \
     GroupSparseLassoRegularizer, GroupLassoRegularizer
+
+np.random.seed(42)
 
 
 def model_test(model, dataset, batch_size, regularizer_loss, param_name='', all_param_regularized=True, use_gpu=False):
@@ -42,11 +45,10 @@ def validate_with_reg(model, val_loader, regularizer_loss, param_name='', all_pa
             if use_gpu:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
+                model.cuda()
 
             output = model(inputs)
-
             predictions = output.max(dim=1)[1]
-
             loss_val = criterion(output, targets)
             if all_param_regularized:
                 loss_val = regularizer_loss.regularized_all_param(reg_loss_function=loss_val)
@@ -66,6 +68,10 @@ def validate_with_reg(model, val_loader, regularizer_loss, param_name='', all_pa
 
 def train_with_regularizer(model, dataset, n_epoch, batch_size, learning_rate, regularizer_loss, param_name='',
                            all_param_regularized=True, use_gpu=False):
+    since = time.time()
+    best_model_wts = model.state_dict()
+    best_acc = 0.0
+    best_number_epoch = 0
     history = History()
 
     criterion = nn.CrossEntropyLoss()
@@ -83,6 +89,7 @@ def train_with_regularizer(model, dataset, n_epoch, batch_size, learning_rate, r
             if use_gpu:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
+                model.cuda()
 
             optimizer.zero_grad()
             output = model(inputs)
@@ -109,7 +116,16 @@ def train_with_regularizer(model, dataset, n_epoch, batch_size, learning_rate, r
                                                                                                               val_acc,
                                                                                                               train_loss,
                                                                                                               val_loss))
-    return history
+        if val_acc > best_acc:
+            best_number_epoch = i
+            best_acc = val_acc
+            best_model_wts = model.state_dict()
+
+    time_elapsed = time.time() - since
+    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    print('Best val Acc: {:4f} at this epoch number {}'.format(best_acc, best_number_epoch))
+    model.load_state_dict(best_model_wts)
+    return history, model
 
 
 def main_digits_with_regularizer(type_of_reg='l1', result_file='l1_NN', param_name='', all_param_regularized=True,
@@ -119,25 +135,28 @@ def main_digits_with_regularizer(type_of_reg='l1', result_file='l1_NN', param_na
      C'est très obscure ceci et je ne sais pas pourquoi ils le font ...
      """
     digits_train, digits_test = load_digits_sklearn()
-    batch_size = 300
+    batch_size = [32, 64, 128]
     # lr_list_param = [0.01]
     # n_epoch_list = [200]
     # ld_reg_list = [0.01]
     # alpha_reg_list = [0.1]
 
-    lr_list_param = [10e-1, 10e-2, 10e-3, 10e-4, 10e-5]
+    lr_list_param = [1e-2, 1e-3, 1e-4, 1e-5]
     n_epoch_list = [200]
-    ld_reg_list = [10e-1, 10e-2, 10e-3, 10e-4, 10e-5]
-    alpha_reg_list = [10e-1, 10e-2, 10e-3, 10e-4, 10e-5]
+    ld_reg_list = [10 ** -1, 10 ** -2, 10 ** -3, 10**-3.5, 10 ** -4, 10 ** -5, 10 ** -6, 10 ** -7, 10 ** -8, 10 ** -9,
+                   10 ** -10]
+    alpha_reg_list = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
     if type_of_reg == 'EL':
-        params = list(ParameterGrid({'lr': lr_list_param,
+        params = list(ParameterGrid({'batch_size': batch_size,
+                                     'lr': lr_list_param,
                                      'n_epoch': n_epoch_list,
                                      'ld_reg': ld_reg_list,
                                      'alpha_reg': alpha_reg_list
                                      }))
 
     else:
-        params = list(ParameterGrid({'lr': lr_list_param,
+        params = list(ParameterGrid({'batch_size': batch_size,
+                                     'lr': lr_list_param,
                                      'n_epoch': n_epoch_list,
                                      'ld_reg': ld_reg_list
                                      }))
@@ -161,41 +180,56 @@ def main_digits_with_regularizer(type_of_reg='l1', result_file='l1_NN', param_na
         if type_of_reg == 'SGL':
             reg_loss = GroupSparseLassoRegularizer(model=model, lambda_reg=0.01)
             reg_loss.lambda_reg = param['ld_reg']
-        history_trained = train_with_regularizer(model=model,
-                                                 n_epoch=param['n_epoch'],
-                                                 dataset=digits_train,
-                                                 batch_size=batch_size,
-                                                 learning_rate=param['lr'],
-                                                 regularizer_loss=reg_loss,
-                                                 param_name=param_name,
-                                                 all_param_regularized=all_param_regularized,
-                                                 use_gpu=use_gpu)
+        history_trained, best_model = train_with_regularizer(model=model,
+                                                             n_epoch=param['n_epoch'],
+                                                             dataset=digits_train,
+                                                             batch_size=param['batch_size'],
+                                                             learning_rate=param['lr'],
+                                                             regularizer_loss=reg_loss,
+                                                             param_name=param_name,
+                                                             all_param_regularized=all_param_regularized,
+                                                             use_gpu=use_gpu)
         # history_trained.display()
-        tested_model = model_test(model=model, dataset=digits_test, batch_size=batch_size, regularizer_loss=reg_loss,
-                                  param_name=param_name, all_param_regularized=all_param_regularized, use_gpu=use_gpu)
+        tested_model = model_test(model=best_model, dataset=digits_test, batch_size=param['batch_size'],
+                                  regularizer_loss=reg_loss, param_name=param_name,
+                                  all_param_regularized=all_param_regularized, use_gpu=use_gpu)
         print(tested_model)
-        saving_dict['param_{}'.format(i)] = [param, history_trained.history, tested_model]
+        saving_dict['param_{}'.format(i)] = [param, history_trained.history, tested_model, best_model]
 
     result_file = result_file + time.strftime("%Y%m%d-%H%M%S") + ".pck"
     with open(result_file, 'wb') as f:
         pickle.dump(saving_dict, f)
 
 
+def init_weights(m):
+    if type(m) == nn.Linear:
+        torch.nn.init.xavier_uniform_(m.weight)  # glorot initialization
+        m.bias.data.fill_(0.01)
+
+
 if __name__ == '__main__':
-    # On va tester avec une seule combination et juste la L2 pour verifier notre regularization: L2 and weight decay
-    # should give the same thing
-    main_digits_with_regularizer(type_of_reg='l2', result_file='l2_NN', param_name='',
-                                 all_param_regularized=True, use_gpu=True)
+    main_analyses(directory='./new_results_cuda')
+    exit()
     main_digits_with_regularizer(type_of_reg='l1', result_file='l1_NN', param_name='',
                                  all_param_regularized=True, use_gpu=True)
+
+    print('*' * 20)
+    print('L1 is done')
     main_digits_with_regularizer(type_of_reg='l2', result_file='l2_NN', param_name='',
                                  all_param_regularized=True, use_gpu=True)
-    main_digits_with_regularizer(type_of_reg='EL', result_file='EL_NN', param_name='',
-                                 all_param_regularized=True, use_gpu=True)
+    print('*' * 20)
+    print('L2 is done')
     main_digits_with_regularizer(type_of_reg='GL', result_file='GL_NN', param_name='',
                                  all_param_regularized=True, use_gpu=True)
+    print('*' * 20)
+    print('GL is done')
     main_digits_with_regularizer(type_of_reg='SGL', result_file='SGL_NN', param_name='',
                                  all_param_regularized=True, use_gpu=True)
-
+    print('*' * 20)
+    print('SGL is done')
+    main_digits_with_regularizer(type_of_reg='EL', result_file='EL_NN', param_name='',
+                                 all_param_regularized=True, use_gpu=True)
+    print('*' * 20)
+    print('EL is done')
 
 

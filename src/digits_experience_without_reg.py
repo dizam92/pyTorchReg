@@ -18,7 +18,7 @@ from src.deeplib.history import History
 from src.deeplib.data import train_valid_loaders
 from src.deeplib.net import MnistNet, CifarNet, FullyConnectedNN
 from src.utils import load_file
-
+np.random.seed(42)
 
 def model_test(model, dataset, batch_size, use_gpu=False):
     dataset.transform = ToTensor()
@@ -40,13 +40,13 @@ def validate_without_reg(model, val_loader, use_gpu=False):
             inputs, targets = batch['data'], batch['target']
             inputs = inputs.type(torch.FloatTensor)
             if use_gpu:
+                # inputs = inputs.type(torch.cuda.FloatTensor)
                 inputs = inputs.cuda()
                 targets = targets.cuda()
+                model.cuda()
 
             output = model(inputs)
-
             predictions = output.max(dim=1)[1]
-
             loss_val = criterion(output, targets)
 
             val_loss.append(loss_val.item())
@@ -59,6 +59,10 @@ def validate_without_reg(model, val_loader, use_gpu=False):
 
 def train_without_regularizer(model, dataset, n_epoch, batch_size, learning_rate, weight_decay=None,
                               use_weight_decay=False, use_gpu=False):
+    since = time.time()
+    best_model_wts = model.state_dict()
+    best_acc = 0.0
+    best_number_epoch = 0
     history = History()
 
     criterion = nn.CrossEntropyLoss()
@@ -77,6 +81,7 @@ def train_without_regularizer(model, dataset, n_epoch, batch_size, learning_rate
             if use_gpu:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
+                model.cuda()
 
             optimizer.zero_grad()
             output = model(inputs)
@@ -92,7 +97,22 @@ def train_without_regularizer(model, dataset, n_epoch, batch_size, learning_rate
                                                                                                               val_acc,
                                                                                                               train_loss,
                                                                                                               val_loss))
-    return history
+        if val_acc > best_acc:
+            best_number_epoch = i
+            best_acc = val_acc
+            best_model_wts = model.state_dict()
+
+    time_elapsed = time.time() - since
+    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    print('Best val Acc: {:4f} at this epoch number {}'.format(best_acc, best_number_epoch))
+    model.load_state_dict(best_model_wts)
+    return history, model
+
+
+def init_weights(m):
+    if type(m) == nn.Linear:
+        torch.nn.init.xavier_uniform_(m.weight)
+        m.bias.data.fill_(0.01)
 
 
 def main_digits_without_regularizer(weight_decay=False, result_file='fc_normal', use_gpu=False):
@@ -100,47 +120,48 @@ def main_digits_without_regularizer(weight_decay=False, result_file='fc_normal',
     Run the simplest algorithm to compare the action of the regularization
      """
     digits_train, digits_test = load_digits_sklearn()
-    batch_size = 300
-    weight_decay_list = [10e-1, 10e-2, 10e-3, 10e-4, 10e-5]
-    lr_list_param = [0.1, 0.01, 0.001, 0.0001, 0.00001]
+    batch_size = [32, 64, 128]
+    weight_decay_list = [10 ** -1, 10 ** -2, 10 ** -3, 10**-3.5, 10 ** -4, 10 ** -5, 10 ** -6, 10 ** -7, 10 ** -8, 10 ** -9,
+                   10 ** -10]
+    lr_list_param = [1e-2, 1e-3, 1e-4, 1e-5]
     n_epoch_list = [200, 300]
 
-    # lr_list_param = [0.01]
-    # n_epoch_list = [200]
-    # weight_decay_list = [0.01]
     if weight_decay:
-        params = list(ParameterGrid({'lr': lr_list_param,
+        params = list(ParameterGrid({'batch_size': batch_size,
+                                    'lr': lr_list_param,
                                      'n_epoch': n_epoch_list,
                                      'weight_decay': weight_decay_list
                                      }))
     else:
-        params = list(ParameterGrid({'lr': lr_list_param,
+        params = list(ParameterGrid({'batch_size': batch_size,
+                                    'lr': lr_list_param,
                                      'n_epoch': n_epoch_list
                                      }))
 
-    model = FullyConnectedNN(input_dim=64, output_dim=10, activation_function='ReLU', layers_sizes=[40, 20])
+    model = FullyConnectedNN(input_dim=64, output_dim=10, activation_function='Softmax', layers_sizes=[40, 20])
+    model.apply(init_weights)
     saving_dict = defaultdict(dict)
     for i, param in enumerate(params):
         if weight_decay:
-            history_trained = train_without_regularizer(model=model,
+            history_trained, best_model = train_without_regularizer(model=model,
                                                         n_epoch=param['n_epoch'],
                                                         dataset=digits_train,
-                                                        batch_size=batch_size,
+                                                        batch_size=param['batch_size'],
                                                         learning_rate=param['lr'],
                                                         weight_decay=param['weight_decay'],
                                                         use_gpu=use_gpu)
         else:
-            history_trained = train_without_regularizer(model=model,
+            history_trained, best_model = train_without_regularizer(model=model,
                                                         n_epoch=param['n_epoch'],
                                                         dataset=digits_train,
-                                                        batch_size=batch_size,
+                                                        batch_size=param['batch_size'],
                                                         learning_rate=param['lr'],
                                                         use_gpu=use_gpu)
 
         # history_trained.display()
-        tested_model = model_test(model=model, dataset=digits_test, batch_size=batch_size, use_gpu=use_gpu)
+        tested_model = model_test(model=model, dataset=digits_test, batch_size=param['batch_size'], use_gpu=use_gpu)
         print(tested_model)
-        saving_dict['param_{}'.format(i)] = [param, history_trained.history, tested_model]
+        saving_dict['param_{}'.format(i)] = [param, history_trained.history, tested_model, best_model]
 
     result_file = result_file + time.strftime("%Y%m%d-%H%M%S") + ".pck"
     with open(result_file, 'wb') as f:

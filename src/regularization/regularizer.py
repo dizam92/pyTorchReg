@@ -123,11 +123,9 @@ class GroupSparseLassoRegularizer(_Regularizer):
 
 class GroupLassoRegularizer(_Regularizer):
     """
-    GroupLasso Regularizer
-    la premiere dimension représente la couche d'entrée et la deuxieme la couche de sortie
-    i.e tous les poids sur la ligne représente le groupe
-    groupe défini par les colonnes/lignes des matrix de W
-    C'Est les colonnes qui représentent les groupes pour le weight
+    GroupLasso Regularizer:
+    The first dimension represents the input layer and the second dimension represents the output layer.
+    The groups are defined by the column in the matrix W
     """
     def __init__(self, model, lambda_reg=0.01):
         super(GroupLassoRegularizer, self).__init__(model=model)

@@ -1,0 +1,28 @@
+EL_NN_best_model.pt
+layer 0 got 85.0 amount of sparse neurons
+layer 1 got 80.0 amount of sparse neurons
+layer 2 got 30.0 amount of sparse neurons
+GL_NN_best_model.pt
+layer 0 got 7.5 amount of sparse neurons
+layer 1 got 5.0 amount of sparse neurons
+layer 2 got 0.0 amount of sparse neurons
+l2_NN_best_model.pt
+layer 0 got 62.5 amount of sparse neurons
+layer 1 got 5.0 amount of sparse neurons
+layer 2 got 0.0 amount of sparse neurons
+fc_normal_with_weight_decay_best_model.pt
+layer 0 got 0.0 amount of sparse neurons
+layer 1 got 0.0 amount of sparse neurons
+layer 2 got 0.0 amount of sparse neurons
+fc_normal__best_model.pt
+layer 0 got 0.0 amount of sparse neurons
+layer 1 got 0.0 amount of sparse neurons
+layer 2 got 0.0 amount of sparse neurons
+SGL_NN_best_model.pt
+layer 0 got 92.5 amount of sparse neurons
+layer 1 got 85.0 amount of sparse neurons
+layer 2 got 30.0 amount of sparse neurons
+l1_NN_best_model.pt
+layer 0 got 60.0 amount of sparse neurons
+layer 1 got 80.0 amount of sparse neurons
+layer 2 got 0.0 amount of sparse neurons

@@ -1,0 +1,34 @@
+l2_NN20190422-184750.pck
+best hps is {'batch_size': 32, 'ld_reg': 1e-09, 'lr': 0.0001, 'n_epoch': 200}  and the best test risk is 100.0
+l2_NN20190424-200319.pck
+best hps is {'batch_size': 32, 'ld_reg': 1e-06, 'lr': 0.0001, 'n_epoch': 200}  and the best test risk is 99.15966386554622
+
+fc_normal_with_weight_decay20190422-202234.pck
+best hps is {'batch_size': 32, 'lr': 0.0001, 'n_epoch': 200, 'weight_decay': 0.01}  and the best test risk is 99.15966386554622
+fc_normal_with_weight_decay20190424-215402.pck
+best hps is {'batch_size': 32, 'lr': 0.0001, 'n_epoch': 200, 'weight_decay': 0.01}  and the best test risk is 99.15966386554622
+
+l1_NN20190422-160819.pck
+best hps is {'batch_size': 32, 'ld_reg': 1e-05, 'lr': 0.0001, 'n_epoch': 200}  and the best test risk is 97.47899159663865
+l1_NN20190424-172317.pck
+best hps is {'batch_size': 32, 'ld_reg': 1e-05, 'lr': 0.0001, 'n_epoch': 200}  and the best test risk is 98.31932773109243
+
+GL_NN20190422-212924.pck
+best hps is {'batch_size': 32, 'ld_reg': 1e-07, 'lr': 0.0001, 'n_epoch': 200}  and the best test risk is 98.31932773109243
+GL_NN20190424-224559.pck
+best hps is {'batch_size': 32, 'ld_reg': 1e-07, 'lr': 0.0001, 'n_epoch': 200}  and the best test risk is 97.47899159663865
+
+EL_NN20190424-002654.pck
+best hps is {'alpha_reg': 0.9, 'batch_size': 128, 'ld_reg': 1e-10, 'lr': 0.001, 'n_epoch': 200}  and the best test risk is 98.31932773109243
+EL_NN20190426-015354.pck
+best hps is {'alpha_reg': 0.9, 'batch_size': 32, 'ld_reg': 1e-05, 'lr': 0.001, 'n_epoch': 200}  and the best test risk is 98.31932773109243
+
+SGL_NN20190423-001033.pck
+best hps is {'batch_size': 32, 'ld_reg': 1e-05, 'lr': 0.01, 'n_epoch': 200}  and the best test risk is 26.89075630252101
+SGL_NN20190425-013610.pck
+best hps is {'batch_size': 128, 'ld_reg': 1e-06, 'lr': 1e-05, 'n_epoch': 200}  and the best test risk is 76.47058823529412
+
+fc_normal_20190422-140631.pck
+best hps is {'batch_size': 128, 'lr': 0.01, 'n_epoch': 200}  and the best test risk is 90.75630252100841
+fc_normal_20190424-151728.pck
+best hps is {'batch_size': 128, 'lr': 0.01, 'n_epoch': 200}  and the best test risk is 90.75630252100841

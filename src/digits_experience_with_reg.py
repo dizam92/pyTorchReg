@@ -1,7 +1,10 @@
 import pickle
 import time
+import os
 import numpy as np
 from collections import defaultdict
+from copy import deepcopy
+from glob import glob
 
 import torch
 import torch.nn as nn
@@ -21,6 +24,12 @@ from src.regularization.regularizer import L1Regularizer, L2Regularizer, Elastic
     GroupSparseLassoRegularizer, GroupLassoRegularizer
 
 np.random.seed(42)
+
+
+def init_weights(m):
+    if type(m) == nn.Linear:
+        torch.nn.init.xavier_uniform_(m.weight)  # glorot initialization
+        m.bias.data.fill_(0.01)
 
 
 def model_test(model, dataset, batch_size, regularizer_loss, param_name='', all_param_regularized=True, use_gpu=False):
@@ -162,6 +171,8 @@ def main_digits_with_regularizer(type_of_reg='l1', result_file='l1_NN', param_na
                                      }))
 
     model = FullyConnectedNN(input_dim=64, output_dim=10, activation_function='Softmax', layers_sizes=[40, 20])
+    model.apply(init_weights)
+    best_model = model
     saving_dict = defaultdict(dict)
     for i, param in enumerate(params):
         if type_of_reg == 'l1':
@@ -194,21 +205,44 @@ def main_digits_with_regularizer(type_of_reg='l1', result_file='l1_NN', param_na
                                   regularizer_loss=reg_loss, param_name=param_name,
                                   all_param_regularized=all_param_regularized, use_gpu=use_gpu)
         print(tested_model)
-        saving_dict['param_{}'.format(i)] = [param, history_trained.history, tested_model, best_model]
+        saving_dict['param_{}'.format(i)] = [param, history_trained.history, tested_model]
 
+    torch.save(best_model, '{}_best_model.pt'.format(result_file))
     result_file = result_file + time.strftime("%Y%m%d-%H%M%S") + ".pck"
     with open(result_file, 'wb') as f:
         pickle.dump(saving_dict, f)
 
 
-def init_weights(m):
-    if type(m) == nn.Linear:
-        torch.nn.init.xavier_uniform_(m.weight)  # glorot initialization
-        m.bias.data.fill_(0.01)
+def load_model(best_model, seuil=10e-3):
+    """We load the best model and applied the particularity of the paper by putting weights < abs(seuil) at 0"""
+    # Use their unravel things and test that after
+    model = torch.load(best_model)
+    weights = []
+    sparsity_neurons = []
+    for param_name, param_weights in model.named_parameters():
+        if param_name.endswith('weight'):
+            weights.append(param_weights.data.cpu().numpy())
+    weights_copy = deepcopy(weights)
+    for i in range(len(weights)):
+        for j in range(weights[i].shape[0]):
+            weights[i][j][weights[i][j] < seuil] = 0
+    for i in range(len(weights)):
+        somme = np.sum(weights[i], axis=1)
+        print('layer {} got {} amount of sparse neurons'.format(i, (np.where(somme == 0)[0].size / somme.size) * 100))
+
+
+def main_analyse_sparsity_of_model(directory):
+    os.chdir(directory)
+    for fichier in glob('*.pt'):
+        print('{}'.format(fichier))
+        load_model(best_model=fichier)
 
 
 if __name__ == '__main__':
-    main_analyses(directory='./new_results_cuda')
+    main_analyse_sparsity_of_model(directory='/home/maoss2/PycharmProjects/sparse_regularizator_nn')
+    exit()
+
+    main_analyses(directory='/home/maoss2/PycharmProjects/sparse_regularizator_nn')
     exit()
     main_digits_with_regularizer(type_of_reg='l1', result_file='l1_NN', param_name='',
                                  all_param_regularized=True, use_gpu=True)
